@@ -227,6 +227,11 @@ typedef struct tagBITMAPINFOHEADER {
     #include "external/dr_mp3.h"        // MP3 loading functions
 #endif
 
+#if defined(SUPPORT_FILEFORMAT_M4A)
+    // TODO: Remap stb_vorbis malloc()/free() calls to RL_MALLOC/RL_FREE
+    #include "external/miniaudio_fdkaac.h"    // OGG loading functions
+#endif
+
 #if defined(SUPPORT_FILEFORMAT_QOA)
     #define QOA_MALLOC RL_MALLOC
     #define QOA_FREE RL_FREE
@@ -326,6 +331,7 @@ typedef enum {
     MUSIC_AUDIO_OGG,        // OGG audio context
     MUSIC_AUDIO_FLAC,       // FLAC audio context
     MUSIC_AUDIO_MP3,        // MP3 audio context
+    MUSIC_AUDIO_M4A,        // M4A/AAC module audio context
     MUSIC_AUDIO_QOA,        // QOA audio context
     MUSIC_MODULE_XM,        // XM module audio context
     MUSIC_MODULE_MOD        // MOD module audio context
@@ -851,6 +857,20 @@ Wave LoadWaveFromMemory(const char *fileType, const unsigned char *fileData, int
         }
         else TRACELOG(LOG_WARNING, "WAVE: Failed to load MP3 data");
 
+    }
+#endif
+#if defined(SUPPORT_FILEFORMAT_M4A)
+    else if ((strcmp(fileType, ".aac") == 0) || (strcmp(fileType, ".m4a") == 0) || (strcmp(fileType, ".AAC") == 0) || (strcmp(fileType, ".M4A") == 0))
+    {
+        assert(false);
+        unsigned long long int totalFrameCount = 0;
+
+        // NOTE: We are forcing conversion to 16bit sample size on reading
+        // AAC TODO !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! UNIMPLEMENTED
+        wave.sampleSize = 16;
+
+        if (wave.data != NULL) wave.frameCount = (unsigned int)totalFrameCount;
+        else TRACELOG(LOG_WARNING, "WAVE: Failed to load M4A/AAC data");
     }
 #endif
 #if defined(SUPPORT_FILEFORMAT_QOA)
@@ -1394,9 +1414,31 @@ Music LoadMusicStream(const char *fileName)
             music.looping = true;   // Looping enabled by default
             musicLoaded = true;
         }
-        else
-        {
+        else {
             RL_FREE(ctxMp3);
+        }
+    }
+#endif
+#if defined(SUPPORT_FILEFORMAT_M4A)
+    else if (IsFileExtension(fileName, ".m4a"))
+    {
+        ma_fdkaac *ctxM4a = RL_CALLOC(1, sizeof(ma_fdkaac));
+        ma_result result = ma_fdkaac_init_file(fileName, NULL, NULL, ctxM4a);
+
+        if (result == MA_SUCCESS)
+        {
+            music.ctxType = MUSIC_AUDIO_M4A;
+            music.ctxData = ctxM4a;
+            music.stream = LoadAudioStream(ctxM4a->info->sampleRate, 16, ctxM4a->info->numChannels);
+            ma_uint64 totalPCMFrameCount;
+            if (ma_fdkaac_get_length_in_pcm_frames(ctxM4a, &totalPCMFrameCount) == MA_SUCCESS) { // TODO @dgrisham this might be wrong, should validate implementation
+                music.frameCount = (unsigned int)totalPCMFrameCount;
+            }
+            music.looping = true;   // Looping enabled by default
+            musicLoaded = true;
+        }
+        else {
+            RL_FREE(ctxM4a);
         }
     }
 #endif
@@ -1416,7 +1458,7 @@ Music LoadMusicStream(const char *fileName)
             music.looping = true;   // Looping enabled by default
             musicLoaded = true;
         }
-        else{} //No uninit required
+        else {} //No uninit required
     }
 #endif
 #if defined(SUPPORT_FILEFORMAT_FLAC)
@@ -1592,6 +1634,12 @@ Music LoadMusicStreamFromMemory(const char *fileType, const unsigned char *data,
         }
     }
 #endif
+#if defined(SUPPORT_FILEFORMAT_M4A)
+    else if ((strcmp(fileType, ".m4a") == 0) || (strcmp(fileType, ".M4A") == 0))
+    {
+        assert(false);
+    }
+#endif
 #if defined(SUPPORT_FILEFORMAT_QOA)
     else if ((strcmp(fileType, ".qoa") == 0) || (strcmp(fileType, ".QOA") == 0))
     {
@@ -1749,6 +1797,9 @@ void UnloadMusicStream(Music music)
 #if defined(SUPPORT_FILEFORMAT_MP3)
         else if (music.ctxType == MUSIC_AUDIO_MP3) { drmp3_uninit((drmp3 *)music.ctxData); RL_FREE(music.ctxData); }
 #endif
+#if defined(SUPPORT_FILEFORMAT_M4A)
+        else if (music.ctxType == MUSIC_AUDIO_M4A) { ma_fdkaac_uninit((ma_fdkaac *)music.ctxData, NULL); RL_FREE(music.ctxData); }
+#endif
 #if defined(SUPPORT_FILEFORMAT_QOA)
         else if (music.ctxType == MUSIC_AUDIO_QOA) qoaplay_close((qoaplay_desc *)music.ctxData);
 #endif
@@ -1798,6 +1849,9 @@ void StopMusicStream(Music music)
 #if defined(SUPPORT_FILEFORMAT_MP3)
         case MUSIC_AUDIO_MP3: drmp3_seek_to_start_of_stream((drmp3 *)music.ctxData); break;
 #endif
+#if defined(SUPPORT_FILEFORMAT_M4A) // TOOD AAC M4A
+		case MUSIC_AUDIO_M4A: assert(false); break;
+#endif
 #if defined(SUPPORT_FILEFORMAT_QOA)
         case MUSIC_AUDIO_QOA: qoaplay_rewind((qoaplay_desc *)music.ctxData); break;
 #endif
@@ -1832,6 +1886,9 @@ void SeekMusicStream(Music music, float position)
 #endif
 #if defined(SUPPORT_FILEFORMAT_MP3)
         case MUSIC_AUDIO_MP3: drmp3_seek_to_pcm_frame((drmp3 *)music.ctxData, positionInFrames); break;
+#endif
+#if defined(SUPPORT_FILEFORMAT_M4A)
+        case MUSIC_AUDIO_M4A: assert(false); ma_fdkaac_seek_to_pcm_frame((ma_fdkaac *)music.ctxData, positionInFrames); break; // TODO AAC M4A unimplemented
 #endif
 #if defined(SUPPORT_FILEFORMAT_QOA)
         case MUSIC_AUDIO_QOA:
@@ -1941,6 +1998,22 @@ void UpdateMusicStream(Music music)
                     if (frameCountStillNeeded == 0) break;
                     else drmp3_seek_to_start_of_stream((drmp3 *)music.ctxData);
                 }
+            } break;
+        #endif
+        #if defined(SUPPORT_FILEFORMAT_M4A)
+            case MUSIC_AUDIO_M4A:
+            {
+				ma_uint64 frameCountRead;
+                ma_result result = ma_fdkaac_read_pcm_frames((ma_fdkaac *)music.ctxData, AUDIO.System.pcmBuffer, framesToStream, &frameCountRead);
+                if (result != MA_SUCCESS) {
+                    printf("Error reading PCM frames while decoding AAC: %d\n", result);
+                    assert(false); // TODO AAC M4A
+                }
+                frameCountReadTotal += (unsigned int)frameCountRead;
+                // printf("frameCountReadTotal: %d\n", frameCountReadTotal);
+                // printf("frameCount: %d\n", music.frameCount);
+
+                // TODO: logic to seek to start of stream when looping? this might require restoring the while (true) around this
             } break;
         #endif
         #if defined(SUPPORT_FILEFORMAT_QOA)
