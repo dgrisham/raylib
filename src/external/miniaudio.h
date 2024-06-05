@@ -4301,6 +4301,7 @@ typedef enum
     ma_standard_channel_map_rfc3551,   /* Based off AIFF. */
     ma_standard_channel_map_flac,
     ma_standard_channel_map_vorbis,
+    ma_standard_channel_map_fdkaac,
     ma_standard_channel_map_sound4,    /* FreeBSD's sound(4). */
     ma_standard_channel_map_sndio,     /* www.sndio.org/tips.html */
     ma_standard_channel_map_webaudio = ma_standard_channel_map_flac, /* https://webaudio.github.io/web-audio-api/#ChannelOrdering. Only 1, 2, 4 and 6 channels are defined, but can fill in the gaps with logical assumptions. */
@@ -9856,7 +9857,8 @@ typedef enum
     ma_encoding_format_wav,
     ma_encoding_format_flac,
     ma_encoding_format_mp3,
-    ma_encoding_format_vorbis
+    ma_encoding_format_vorbis,
+    ma_encoding_format_aac
 } ma_encoding_format;
 #endif
 
@@ -54071,6 +54073,7 @@ MA_API ma_result ma_data_converter_get_heap_size(const ma_data_converter_config*
     ma_data_converter_heap_layout heapLayout;
 
     if (pHeapSizeInBytes == NULL) {
+        printf("JDFKSL 111111111111\n");
         return MA_INVALID_ARGS;
     }
 
@@ -54078,6 +54081,7 @@ MA_API ma_result ma_data_converter_get_heap_size(const ma_data_converter_config*
 
     result = ma_data_converter_get_heap_layout(pConfig, &heapLayout);
     if (result != MA_SUCCESS) {
+        printf("JDFKSL 222222222222\n");
         return result;
     }
 
@@ -55594,6 +55598,106 @@ static ma_channel ma_channel_map_init_standard_channel_vorbis(ma_uint32 channelC
     return MA_CHANNEL_NONE;
 }
 
+static ma_channel ma_channel_map_init_standard_channel_fdkaac(ma_uint32 channelCount, ma_uint32 channelIndex)
+{
+    switch (channelCount)
+    {
+        case 0: return MA_CHANNEL_NONE;
+
+        case 1:
+        {
+            return MA_CHANNEL_MONO;
+        } break;
+
+        case 2:
+        {
+            switch (channelIndex) {
+                case 0: return MA_CHANNEL_FRONT_LEFT;
+                case 1: return MA_CHANNEL_FRONT_RIGHT;
+            }
+        } break;
+
+        case 3:
+        {
+            switch (channelIndex) {
+                case 0: return MA_CHANNEL_FRONT_LEFT;
+                case 1: return MA_CHANNEL_FRONT_CENTER;
+                case 2: return MA_CHANNEL_FRONT_RIGHT;
+            }
+        } break;
+
+        case 4:
+        {
+            switch (channelIndex) {
+                case 0: return MA_CHANNEL_FRONT_LEFT;
+                case 1: return MA_CHANNEL_FRONT_RIGHT;
+                case 2: return MA_CHANNEL_BACK_LEFT;
+                case 3: return MA_CHANNEL_BACK_RIGHT;
+            }
+        } break;
+
+        case 5:
+        {
+            switch (channelIndex) {
+                case 0: return MA_CHANNEL_FRONT_LEFT;
+                case 1: return MA_CHANNEL_FRONT_CENTER;
+                case 2: return MA_CHANNEL_FRONT_RIGHT;
+                case 3: return MA_CHANNEL_BACK_LEFT;
+                case 4: return MA_CHANNEL_BACK_RIGHT;
+            }
+        } break;
+
+        case 6:
+        {
+            switch (channelIndex) {
+                case 0: return MA_CHANNEL_FRONT_LEFT;
+                case 1: return MA_CHANNEL_FRONT_CENTER;
+                case 2: return MA_CHANNEL_FRONT_RIGHT;
+                case 3: return MA_CHANNEL_BACK_LEFT;
+                case 4: return MA_CHANNEL_BACK_RIGHT;
+                case 5: return MA_CHANNEL_LFE;
+            }
+        } break;
+
+        case 7:
+        {
+            switch (channelIndex) {
+                case 0: return MA_CHANNEL_FRONT_LEFT;
+                case 1: return MA_CHANNEL_FRONT_CENTER;
+                case 2: return MA_CHANNEL_FRONT_RIGHT;
+                case 3: return MA_CHANNEL_SIDE_LEFT;
+                case 4: return MA_CHANNEL_SIDE_RIGHT;
+                case 5: return MA_CHANNEL_BACK_CENTER;
+                case 6: return MA_CHANNEL_LFE;
+            }
+        } break;
+
+        case 8:
+        default:
+        {
+            switch (channelIndex) {
+                case 0: return MA_CHANNEL_FRONT_LEFT;
+                case 1: return MA_CHANNEL_FRONT_CENTER;
+                case 2: return MA_CHANNEL_FRONT_RIGHT;
+                case 3: return MA_CHANNEL_SIDE_LEFT;
+                case 4: return MA_CHANNEL_SIDE_RIGHT;
+                case 5: return MA_CHANNEL_BACK_LEFT;
+                case 6: return MA_CHANNEL_BACK_RIGHT;
+                case 7: return MA_CHANNEL_LFE;
+            }
+        } break;
+    }
+
+    if (channelCount > 8) {
+        if (channelIndex < 32) {    /* We have 32 AUX channels. */
+            return (ma_channel)(MA_CHANNEL_AUX_0 + (channelIndex - 8));
+        }
+    }
+
+    /* Getting here means we don't know how to map the channel position so just return MA_CHANNEL_NONE. */
+    return MA_CHANNEL_NONE;
+}
+
 static ma_channel ma_channel_map_init_standard_channel_sound4(ma_uint32 channelCount, ma_uint32 channelIndex)
 {
     switch (channelCount)
@@ -55794,6 +55898,11 @@ static ma_channel ma_channel_map_init_standard_channel(ma_standard_channel_map s
         case ma_standard_channel_map_vorbis:
         {
             return ma_channel_map_init_standard_channel_vorbis(channelCount, channelIndex);
+        } break;
+
+        case ma_standard_channel_map_fdkaac:
+        {
+            return ma_channel_map_init_standard_channel_fdkaac(channelCount, channelIndex);
         } break;
 
         case ma_standard_channel_map_sound4:

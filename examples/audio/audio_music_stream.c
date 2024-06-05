@@ -27,14 +27,16 @@ int main(void)
 
     InitAudioDevice();              // Initialize audio device
 
-    Music music = LoadMusicStream("resources/country.mp3");
+    // Music music = LoadMusicStream("resources/country.mp3");
+    // Music music = LoadMusicStream("resources/fly.mp3");
+    Music music = LoadMusicStream("resources/irresistible.m4a");
 
     PlayMusicStream(music);
 
     float timePlayed = 0.0f;        // Time played normalized [0.0f..1.0f]
     bool pause = false;             // Music playing paused
 
-    SetTargetFPS(30);               // Set our game to run at 30 frames-per-second
+    SetTargetFPS(60);               // Set our game to run at 30 frames-per-second
     //--------------------------------------------------------------------------------------
 
     // Main game loop
